@@ -1505,13 +1505,60 @@ fn item_use_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()>
         }
     }
 
-    let open = p.expect(K!['{'])?;
-
     if nested == 1 {
+        let open = p.expect(K!['{'])?;
         fmt.ignore(open)?;
+
+        let mut comma = Remaining::default();
+
+        while let MaybeNode::Some(inner) = p.eat(ItemUsePath) {
+            fmt.comments(Prefix)?;
+
+            if comma.fmt(fmt)? {
+                fmt.ws()?;
+            }
+
+            inner.parse(|p| item_use_path(fmt, p))?;
+            comma = p.remaining(fmt, K![,])?;
+            fmt.comments(Suffix)?;
+        }
+
+        if !comma.ignore(fmt)? {
+            fmt.comments(Infix)?;
+        }
+
+        p.one(K!['}']).ignore(fmt)?;
+    } else if fmt.source.is_at_least(p.span(), fmt.line_budget())? {
+        item_use_group_loose(fmt, p)?;
     } else {
-        open.fmt(fmt)?;
+        item_use_group_compact(fmt, p)?;
     }
+
+    Ok(())
+}
+
+fn item_use_group_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.expect(K!['{'])?.fmt(fmt)?;
+
+    fmt.nl(1)?;
+    fmt.indent(1)?;
+
+    while let MaybeNode::Some(inner) = p.eat(ItemUsePath) {
+        fmt.comments(Line)?;
+        inner.parse(|p| item_use_path(fmt, p))?;
+        p.remaining(fmt, K![,])?.fmt(fmt)?;
+        fmt.nl(1)?;
+    }
+
+    fmt.nl(1)?;
+    fmt.indent(-1)?;
+
+    p.one(K!['}']).fmt(fmt)?;
+    Ok(())
+}
+
+fn item_use_group_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.expect(K!['{'])?.fmt(fmt)?;
 
     let mut comma = Remaining::default();
 
@@ -1531,14 +1578,7 @@ fn item_use_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()>
         fmt.comments(Infix)?;
     }
 
-    let close = p.one(K!['}']);
-
-    if nested == 1 {
-        close.ignore(fmt)?;
-    } else {
-        close.fmt(fmt)?;
-    }
-
+    p.one(K!['}']).fmt(fmt)?;
     Ok(())
 }
 

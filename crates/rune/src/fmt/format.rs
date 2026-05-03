@@ -429,7 +429,7 @@ fn expr_object<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     }
 
     let mut count = 0;
-    let mut expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
+    let mut expanded = fmt.source.is_at_least(p.span(), fmt.remaining_budget())?;
 
     for node in p.children() {
         if expanded {
@@ -782,7 +782,7 @@ fn expr_assign<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
 fn exprs<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, open: Kind, close: Kind) -> Result<()> {
     let mut count = 0;
-    let mut expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
+    let mut expanded = fmt.source.is_at_least(p.span(), fmt.remaining_budget())?;
 
     for node in p.children() {
         if expanded {
@@ -1232,7 +1232,7 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut unindented = true;
 
     for (n, node) in p.by_ref().enumerate() {
-        if n >= from {
+        if n >= from && !matches!(node.kind(), ExprCall) {
             fmt.indent(isize::from(take(&mut unindented)))?;
             fmt.nl(usize::from(matches!(node.kind(), ExprField | ExprAwait)))?;
         }

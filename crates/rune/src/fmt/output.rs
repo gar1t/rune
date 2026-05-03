@@ -95,6 +95,13 @@ impl Buffer {
         self.0.is_empty()
     }
 
+    fn current_line_width(&self) -> usize {
+        match self.0.rfind('\n') {
+            Some(pos) => self.0.len() - pos - 1,
+            None => self.0.len(),
+        }
+    }
+
     #[inline]
     fn str(&mut self, s: &str) -> alloc::Result<()> {
         self.0.try_push_str(s)
@@ -219,6 +226,12 @@ impl<'a> Formatter<'a> {
     /// indentation. Uses a base line width of 80.
     pub(super) fn line_budget(&self) -> usize {
         80usize.saturating_sub(self.indent * INDENT.len())
+    }
+
+    /// Remaining character budget accounting for content already written
+    /// on the current output line.
+    pub(super) fn remaining_budget(&self) -> usize {
+        80usize.saturating_sub(self.o.current_line_width())
     }
 
     /// Indent the output.

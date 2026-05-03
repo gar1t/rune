@@ -246,9 +246,15 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let size = c.scopes.size();
 
                 if !self.q.is_used(&item_meta) {
+                    let name_span: &dyn Spanned = match &f.ast {
+                        FunctionAst::Item(_, name) => name,
+                        FunctionAst::Node(_, Some(name)) => name,
+                        _ => span,
+                    };
+
                     self.q
                         .diagnostics
-                        .not_used(location.source_id, span, None)?;
+                        .not_used(location.source_id, name_span, None)?;
                 } else {
                     let instance = match (type_hash, &f.ast) {
                         (Some(type_hash), FunctionAst::Item(_, name)) => {

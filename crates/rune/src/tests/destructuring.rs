@@ -50,3 +50,14 @@ fn test_fn_destructuring() {
     test_case!((Foo::Var {a, b}), (Foo::Var {a, b}), enum Foo { Var{a, b} };);
     test_case!((Foo::Var(a, b)), (Foo::Var(a, b)), enum Foo { Var(a, b) };);
 }
+
+#[test]
+fn test_closure_tuple_destructure_with_objects() {
+    let out: i64 = rune! {
+        let v = [(#{ val: 1 }, "x"), (#{ val: 2 }, "y")];
+        let r = v.iter().map(|(obj, _)| obj.val).collect::<Vec>();
+        r[0] + r[1]
+    };
+    assert_eq!(out, 3);
+}
+

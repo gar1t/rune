@@ -740,16 +740,33 @@ fn pat_sequence<'a, 'hir>(
     let addr = addr.into_addr()?;
     let cond = cx.scopes.alloc(span)?.with_name("loaded pattern condition");
 
-    let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output())?;
+    let source = if hir.items.len() > 1 {
+        let copy = cx.scopes.alloc(span)?.with_name("pattern sequence copy");
+        cx.asm.push(
+            inst::Kind::Copy {
+                addr: addr.addr(),
+                out: copy.output(),
+            },
+            span,
+        )?;
+        let inst = pat_sequence_kind_to_inst(hir.kind, copy.addr(), cond.output())?;
+        cx.asm.push(inst, span)?;
+        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+        Some(copy)
+    } else {
+        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output())?;
+        cx.asm.push(inst, span)?;
+        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+        None
+    };
 
-    cx.asm.push(inst, span)?;
-    cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+    let source_addr = source.as_ref().map_or_else(|| addr.addr(), |s| s.addr());
 
     for (index, p) in hir.items.iter().enumerate() {
         let mut load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
             cx.asm.push(
                 inst::Kind::TupleIndexGetAt {
-                    addr: addr.addr(),
+                    addr: source_addr,
                     index,
                     out: needs.alloc_output()?,
                 },
@@ -764,6 +781,9 @@ fn pat_sequence<'a, 'hir>(
         );
     }
 
+    if let Some(source) = source {
+        source.free()?;
+    }
     cond.free()?;
     addr.free()?;
     Ok(Asm::new(span, Pattern::Refutable))

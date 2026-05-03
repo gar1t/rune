@@ -1230,12 +1230,15 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     }
 
     let mut unindented = true;
+    let mut prev_was_call = false;
 
     for (n, node) in p.by_ref().enumerate() {
-        if n >= from && matches!(node.kind(), ExprField | ExprAwait) {
+        if n >= from && matches!(node.kind(), ExprField | ExprAwait) && !(prev_was_call && matches!(node.kind(), ExprAwait)) {
             fmt.indent(isize::from(take(&mut unindented)))?;
             fmt.nl(1)?;
         }
+
+        prev_was_call = matches!(node.kind(), ExprCall);
 
         node.parse(|p| {
             match p.kind() {

@@ -429,7 +429,7 @@ fn expr_object<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     }
 
     let mut count = 0;
-    let mut expanded = fmt.source.is_at_least(p.span(), 80)?;
+    let mut expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
 
     for node in p.children() {
         if expanded {
@@ -782,7 +782,7 @@ fn expr_assign<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
 fn exprs<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, open: Kind, close: Kind) -> Result<()> {
     let mut count = 0;
-    let mut expanded = fmt.source.is_at_least(p.span(), 80)?;
+    let mut expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
 
     for node in p.children() {
         if expanded {
@@ -1179,7 +1179,7 @@ fn expr_closure<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    let expanded = fmt.source.is_at_least(p.span(), 80)?;
+    let expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
 
     // If the first expression *is* small, and there are no other expressions
     // that need indentation in the chain, we can keep it all on one line.
@@ -1199,10 +1199,11 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         None
     };
 
+    let budget = fmt.line_budget();
     let first_is_small = if let Some((_, tail)) = tail {
-        !fmt.source.is_at_least(head.join(tail.head()), 80)?
+        !fmt.source.is_at_least(head.join(tail.head()), budget)?
     } else {
-        !fmt.source.is_at_least(head, 80)?
+        !fmt.source.is_at_least(head, budget)?
     };
 
     let from;

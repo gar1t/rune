@@ -48,14 +48,25 @@ impl Source {
         Ok(source)
     }
 
-    /// Perform a whitespace-insensitive count and check if it's more than
-    /// `count`.
+    /// Estimate the single-line width of a span and check if it's at least
+    /// `count` characters. Whitespace runs are normalized to a single space
+    /// to approximate the formatted output width.
     pub(super) fn is_at_least(&self, span: Span, mut count: usize) -> Result<bool> {
         let source = self.get(span)?;
+        let mut in_whitespace = false;
 
         for c in source.chars() {
             if c.is_whitespace() {
+                in_whitespace = true;
                 continue;
+            }
+
+            if in_whitespace {
+                in_whitespace = false;
+                let Some(c) = count.checked_sub(1) else {
+                    return Ok(true);
+                };
+                count = c;
             }
 
             let Some(c) = count.checked_sub(1) else {
@@ -202,6 +213,12 @@ impl<'a> Formatter<'a> {
         }
 
         Ok(())
+    }
+
+    /// Remaining character budget for a single line, accounting for
+    /// indentation. Uses a base line width of 80.
+    pub(super) fn line_budget(&self) -> usize {
+        80usize.saturating_sub(self.indent * INDENT.len())
     }
 
     /// Indent the output.

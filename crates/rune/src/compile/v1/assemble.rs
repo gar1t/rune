@@ -230,7 +230,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
                 cx.scopes.define(span, *name, needs)?;
             }
             hir::FnArg::Pat(pat) => {
-                let asm = pattern_panic(cx, pat, move |cx, false_label| {
+                let asm = pattern_panic_with_pat(cx, pat, &pat.pat, move |cx, false_label| {
                     fn_arg_pat(cx, pat, needs, false_label)
                 })?;
 
@@ -305,7 +305,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
                 return Err(compile::Error::new(span, ErrorKind::UnsupportedSelf))
             }
             hir::FnArg::Pat(pat) => {
-                let asm = pattern_panic(cx, pat, move |cx, false_label| {
+                let asm = pattern_panic_with_pat(cx, pat, &pat.pat, move |cx, false_label| {
                     fn_arg_pat(cx, pat, needs, false_label)
                 })?;
 
@@ -372,9 +372,35 @@ fn return_<'a, 'hir, T>(
     Ok(Asm::new(span, ()))
 }
 
-fn pattern_panic<'a, 'hir, 'arena, F>(
+fn pat_has_only_bindings(pat: &hir::Pat<'_>) -> bool {
+    match pat.kind {
+        hir::PatKind::Ignore => true,
+        hir::PatKind::Path(kind) => matches!(kind, hir::PatPathKind::Ident(_)),
+        hir::PatKind::Sequence(seq) => seq.items.iter().all(|p| pat_has_only_bindings(p)),
+        hir::PatKind::Object(obj) => obj.bindings.iter().all(|b| match b {
+            hir::Binding::Ident(..) => true,
+            hir::Binding::Binding(_, _, p) => pat_has_only_bindings(p),
+        }),
+        hir::PatKind::Lit(_) => false,
+    }
+}
+
+fn pattern_panic_with_pat<'a, 'hir, 'arena, F>(
     cx: &mut Ctxt<'a, 'hir, 'arena>,
     span: &'hir dyn Spanned,
+    pat: &hir::Pat<'hir>,
+    f: F,
+) -> compile::Result<Asm<'hir>>
+where
+    F: FnOnce(&mut Ctxt<'a, 'hir, 'arena>, &Label) -> compile::Result<Asm<'hir, Pattern>>,
+{
+    pattern_panic_inner(cx, span, Some(pat), f)
+}
+
+fn pattern_panic_inner<'a, 'hir, 'arena, F>(
+    cx: &mut Ctxt<'a, 'hir, 'arena>,
+    span: &'hir dyn Spanned,
+    pat: Option<&hir::Pat<'hir>>,
     f: F,
 ) -> compile::Result<Asm<'hir>>
 where
@@ -383,8 +409,12 @@ where
     let false_label = cx.asm.new_label("pattern_panic");
 
     if matches!(converge!(f(cx, &false_label)?), Pattern::Refutable) {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, span, cx.context())?;
+        let suppress = pat.is_some_and(|p| pat_has_only_bindings(p));
+
+        if !suppress {
+            cx.q.diagnostics
+                .let_pattern_might_panic(cx.source_id, span, cx.context())?;
+        }
 
         let match_label = cx.asm.new_label("patter_match");
 
@@ -2337,7 +2367,7 @@ fn expr_for<'a, 'hir>(
         Ok(Asm::new(&hir.binding, ()))
     };
 
-    let asm = pattern_panic(cx, &hir.binding, |cx, false_label| {
+    let asm = pattern_panic_with_pat(cx, &hir.binding, &hir.binding.pat, |cx, false_label| {
         pat_binding_with(
             cx,
             &hir.binding,
@@ -2537,7 +2567,7 @@ fn expr_let<'a, 'hir>(
     let mut load =
         |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| expr(cx, &hir.expr, needs);
 
-    converge!(pattern_panic(cx, &hir.pat, move |cx, false_label| {
+    converge!(pattern_panic_with_pat(cx, &hir.pat, &hir.pat.pat, move |cx, false_label| {
         pat_binding(cx, &hir.pat, false_label, &mut load)
     })?);
 
@@ -3310,7 +3340,7 @@ fn local<'a, 'hir>(
     let mut load =
         |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| expr(cx, &hir.expr, needs);
 
-    converge!(pattern_panic(cx, &hir.pat, |cx, false_label| {
+    converge!(pattern_panic_with_pat(cx, &hir.pat, &hir.pat.pat, |cx, false_label| {
         pat_binding(cx, &hir.pat, false_label, &mut load)
     })?);
 

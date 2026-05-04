@@ -1,6 +1,6 @@
 use core::mem::take;
 
-use crate::ast::{Delimiter, Kind};
+use crate::ast::{Delimiter, Kind, Span};
 use crate::compile::Result;
 use crate::grammar::{classify, object_key, MaybeNode, NodeClass};
 
@@ -1225,7 +1225,26 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         }
 
         if found {
-            from = 0;
+            let tail_width = p.children().skip(first.wrapping_add(1))
+                .fold(None, |acc: Option<Span>, n| {
+                    Some(match acc {
+                        Some(s) => s.join(n.span()),
+                        None => n.span(),
+                    })
+                })
+                .and_then(|span| fmt.source.source_len(span));
+
+            let tail_is_short = match tail_width {
+                Some(len) => len < budget.saturating_sub(1),
+                None => true,
+            };
+
+            if tail_is_short {
+                from = usize::MAX;
+                fmt.reserved_width = tail_width.unwrap_or(0);
+            } else {
+                from = 0;
+            }
         } else {
             from = first + 1;
         }
@@ -1282,6 +1301,10 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
             Ok(())
         })?;
+
+        if prev_was_call {
+            fmt.reserved_width = 0;
+        }
     }
 
     if !unindented {

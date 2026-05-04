@@ -78,6 +78,30 @@ impl Source {
 
         Ok(false)
     }
+
+    /// Compute the normalized single-line width of a span (whitespace runs
+    /// count as one character).
+    pub(super) fn source_len(&self, span: Span) -> Option<usize> {
+        let source = self.0.get(span.range())?;
+        let mut len = 0;
+        let mut in_whitespace = false;
+
+        for c in source.chars() {
+            if c.is_whitespace() {
+                in_whitespace = true;
+                continue;
+            }
+
+            if in_whitespace {
+                in_whitespace = false;
+                len += 1;
+            }
+
+            len += 1;
+        }
+
+        Some(len)
+    }
 }
 
 /// The output buffer.
@@ -137,6 +161,9 @@ pub(crate) struct Formatter<'a> {
     use_lines: bool,
     ws: bool,
     indent: usize,
+    /// Width reserved for content that will follow on the same line (e.g.
+    /// chain tail after an expanded call).
+    pub(super) reserved_width: usize,
 }
 
 impl<'a> Formatter<'a> {
@@ -161,6 +188,7 @@ impl<'a> Formatter<'a> {
             use_lines: false,
             ws: false,
             indent: 0,
+            reserved_width: 0,
         }
     }
 
@@ -229,9 +257,11 @@ impl<'a> Formatter<'a> {
     }
 
     /// Remaining character budget accounting for content already written
-    /// on the current output line.
+    /// on the current output line and any reserved trailing width.
     pub(super) fn remaining_budget(&self) -> usize {
-        80usize.saturating_sub(self.o.current_line_width())
+        80usize
+            .saturating_sub(self.o.current_line_width())
+            .saturating_sub(self.reserved_width)
     }
 
     /// Indent the output.

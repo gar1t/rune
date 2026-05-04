@@ -793,6 +793,10 @@ fn exprs<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>, open: Kind, close: Kin
         expanded |= matches!(node.kind(), Kind::Comment) || count >= 6;
     }
 
+    if expanded {
+        expanded = p.children().any(|n| matches!(n.kind(), Expr | Kind::Comment));
+    }
+
     p.one(open).fmt(fmt)?;
 
     if expanded {
@@ -1179,7 +1183,7 @@ fn expr_closure<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    let expanded = fmt.source.is_at_least(p.span(), fmt.line_budget())?;
+    let expanded = fmt.source.is_at_least(p.span(), fmt.remaining_budget())?;
 
     // If the first expression *is* small, and there are no other expressions
     // that need indentation in the chain, we can keep it all on one line.

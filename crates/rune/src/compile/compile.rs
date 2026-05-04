@@ -245,7 +245,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
                 let size = c.scopes.size();
 
-                if !self.q.is_used(&item_meta) {
+                if !self.q.is_used(&item_meta) && !item_meta.visibility.is_public() {
                     let name_span: &dyn Spanned = match &f.ast {
                         FunctionAst::Item(_, name) => name,
                         FunctionAst::Node(_, Some(name)) => name,
@@ -388,7 +388,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q
                         .import(&location, item_meta.module, item_meta.item, used, used)?;
 
-                if !self.q.is_used(&item_meta) {
+                if !self.q.is_used(&item_meta) && !item_meta.visibility.is_public() {
                     self.q
                         .diagnostics
                         .not_used(location.source_id, &location.span, None)?;

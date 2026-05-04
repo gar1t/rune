@@ -755,12 +755,17 @@ impl<'a> Processor<'a> {
             idx.error(Error::msg(&*p, "missing `const` modifier"))?;
         }
 
-        let (guard, _) = push_name(idx, p, "constant")?;
+        let (guard, name) = push_name(idx, p, "constant")?;
 
         p.expect(K![=])?;
         let value = p.expect(Expr)?;
 
-        let item_meta = idx.insert_new_item(&value, mods.visibility.take(), &attrs.docs)?;
+        let span: &dyn Spanned = match &name {
+            Some(name) => name,
+            None => &value,
+        };
+
+        let item_meta = idx.insert_new_item(span, mods.visibility.take(), &attrs.docs)?;
 
         let idx_item = idx.item.replace(item_meta.item);
         let last = idx.nested_item.replace(value.span());

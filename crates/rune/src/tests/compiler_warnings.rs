@@ -17,3 +17,11 @@ fn test_template_without_variables() {
         span!(0, 13), TemplateWithoutExpansions { context: Some(span!(0, 13)), .. }
     };
 }
+
+#[test]
+fn test_unused_const_spans_name_only() {
+    assert_warnings! {
+        "const FOO = 10;",
+        span!(6, 9), NotUsed { .. }
+    };
+}

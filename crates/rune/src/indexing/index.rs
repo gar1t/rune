@@ -1089,7 +1089,7 @@ fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Re
     let name = ast.name.resolve(resolve_context!(idx.q))?;
     let guard = idx.items.push_name(name.as_ref())?;
 
-    let item_meta = idx.insert_new_item(&ast, ast_to_visibility(&ast.visibility)?, &docs)?;
+    let item_meta = idx.insert_new_item(&ast.name, ast_to_visibility(&ast.visibility)?, &docs)?;
     let idx_item = idx.item.replace(item_meta.item);
 
     ast.id = item_meta.item;

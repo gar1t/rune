@@ -1,3 +1,5 @@
+use core::mem::take;
+
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::{Span, Spanned};
@@ -113,6 +115,14 @@ pub(crate) fn compile(
 
         for (source_id, error) in errors {
             worker.q.diagnostics.error(source_id, error)?;
+        }
+    }
+
+    let candidates = take(&mut worker.q.inner.unused_candidates);
+
+    for (source_id, span, item) in candidates {
+        if !worker.q.is_item_used(item) {
+            worker.q.diagnostics.not_used(source_id, &span, None)?;
         }
     }
 
@@ -369,9 +379,11 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 tracing::trace!("unused: {}", self.q.pool.item(item_meta.item));
 
                 if !item_meta.visibility.is_public() {
-                    self.q
-                        .diagnostics
-                        .not_used(location.source_id, &location.span, None)?;
+                    self.q.inner.unused_candidates.try_push((
+                        location.source_id,
+                        location.span,
+                        item_meta.item,
+                    ))?;
                 }
             }
             Build::Import(import) => {

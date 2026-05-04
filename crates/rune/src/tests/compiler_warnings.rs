@@ -41,3 +41,11 @@ fn test_pub_const_no_unused_warning() {
         .expect("source should compile");
     assert!(!diagnostics.has_warning(), "pub const should not produce unused warning");
 }
+
+#[test]
+fn test_const_used_by_unused_fn_only_warns_fn() {
+    assert_warnings! {
+        "const DATA = 1; fn process() { DATA } pub fn main() {}",
+        span!(19, 26), NotUsed { .. }
+    };
+}

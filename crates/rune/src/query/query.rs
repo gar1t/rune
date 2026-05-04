@@ -77,6 +77,9 @@ pub(crate) struct QueryInner<'arena> {
     names: Names,
     /// Queue of impl items to process.
     pub(crate) defer_queue: VecDeque<DeferEntry>,
+    /// Deferred not-used candidates from Build::Unused, emitted after all
+    /// functions have been compiled so the used set is complete.
+    pub(crate) unused_candidates: Vec<(SourceId, Span, ItemId)>,
 }
 
 impl QueryInner<'_> {
@@ -231,6 +234,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
     /// Test if the given meta item id is used.
     pub(crate) fn is_used(&self, item_meta: &ItemMeta) -> bool {
         self.inner.used.contains(&item_meta.item)
+    }
+
+    /// Test if the given item id is used.
+    pub(crate) fn is_item_used(&self, item: ItemId) -> bool {
+        self.inner.used.contains(&item)
     }
 
     /// Set the given meta item as used.
@@ -889,6 +897,11 @@ impl<'a, 'arena> Query<'a, 'arena> {
             // `queue_unused_entries` might end up spinning indefinitely since
             // it will never be exhausted.
             debug_assert!(!self.inner.indexed.contains_key(&item));
+
+            if let Used::Used = used {
+                self.inner.used.try_insert(item)?;
+            }
+
             return Ok(Some(meta.try_clone()?));
         }
 

@@ -96,12 +96,16 @@ impl fmt::Display for Named2<'_> {
 pub(crate) enum BuiltInMacro {
     Template(BuiltInTemplate),
     Format(BuiltInFormat),
-    File(BuiltInFile),
+    File(ast::Lit),
+    #[cfg(feature = "std")]
+    IncludeStr(ast::Lit),
     Line(BuiltInLine),
 }
 
 pub(crate) enum BuiltInMacro2 {
     File(ast::LitStr),
+    #[cfg(feature = "std")]
+    IncludeStr(ast::LitStr),
     Line(usize),
     Template(Rc<Tree>, BuiltInLiteral),
     Format(Rc<Tree>),
@@ -138,14 +142,6 @@ pub(crate) struct BuiltInFormat {
     pub(crate) format_type: Option<format::Type>,
     /// The value being formatted.
     pub(crate) value: ast::Expr,
-}
-
-/// Macro data for `file!()`
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, Spanned)]
-#[try_clone(copy)]
-pub(crate) struct BuiltInFile {
-    /// Path value to use
-    pub(crate) value: ast::Lit,
 }
 
 /// Macro data for `line!()`

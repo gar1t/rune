@@ -696,6 +696,12 @@ fn expr_expanded_macro<'hir>(
                 let lit = alloc_str!(lit.as_ref());
                 Ok(hir::ExprKind::Lit(hir::Lit::Str(lit)))
             }
+            #[cfg(feature = "std")]
+            query::BuiltInMacro2::IncludeStr(lit) => {
+                let lit = lit.resolve_string(resolve_context!(cx.q))?;
+                let lit = alloc_str!(lit.as_ref());
+                Ok(hir::ExprKind::Lit(hir::Lit::Str(lit)))
+            }
             query::BuiltInMacro2::Line(line) => {
                 let Ok(n) = u64::try_from(line) else {
                     return Err(Error::new(

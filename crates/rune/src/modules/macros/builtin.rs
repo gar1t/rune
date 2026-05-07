@@ -11,6 +11,8 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module__meta)?.with_unique("std::macros::builtin");
     m.macro_meta(file)?;
+    #[cfg(feature = "std")]
+    m.macro_meta(include_str)?;
     m.macro_meta(line)?;
     Ok(m)
 }
@@ -35,6 +37,36 @@ pub(crate) fn line(
     let stream = quote!(
         #[builtin]
         line!()
+    );
+
+    Ok(stream.into_token_stream(cx)?)
+}
+
+/// Include the contents of a file as a string.
+///
+/// The path is relative to the current source file.
+///
+/// # Examples
+///
+/// ```rune,no_run
+/// let content = include_str!("data.txt");
+/// ```
+#[cfg(feature = "std")]
+#[rune::macro_]
+pub(crate) fn include_str(
+    cx: &mut MacroContext<'_, '_, '_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
+    use crate as rune;
+    use crate::ast;
+
+    let mut parser = Parser::from_token_stream(stream, cx.input_span());
+    let path = parser.parse::<ast::LitStr>()?;
+    parser.eof()?;
+
+    let stream = quote!(
+        #[builtin]
+        include_str!(#path)
     );
 
     Ok(stream.into_token_stream(cx)?)

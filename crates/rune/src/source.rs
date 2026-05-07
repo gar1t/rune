@@ -222,8 +222,8 @@ impl Source {
     /// assert_eq!(source.path(), Some(Path::new("test.rn")));
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    #[cfg(feature = "std")]
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }

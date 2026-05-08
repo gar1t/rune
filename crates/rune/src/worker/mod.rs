@@ -356,8 +356,6 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let expanded = match name {
             "file" => stream.parse(|p| self.expand_file_macro(&this, p))?,
-            #[cfg(feature = "std")]
-            "include_str" => stream.parse(|p| self.expand_include_str_macro(&this, p))?,
             "line" => stream.parse(|p| self.expand_line_macro(&this, p))?,
             "format" => self.expand_format_macro(&this, stream)?,
             "template" => {
@@ -406,60 +404,6 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         };
 
         Ok(BuiltInMacro2::File(value))
-    }
-
-    #[cfg(feature = "std")]
-    fn expand_include_str_macro(
-        &mut self,
-        this: &ExpandMacroBuiltin,
-        p: &mut Stream<'_>,
-    ) -> compile::Result<BuiltInMacro2> {
-        let path_lit = p.ast::<ast::LitStr>()?;
-        let rel_path = path_lit.resolve_string(resolve_context!(self.q))?;
-
-        let source = self
-            .q
-            .sources
-            .get(this.location.source_id)
-            .ok_or_else(|| {
-                compile::Error::new(
-                    &*p,
-                    compile::ErrorKind::MissingSourceId {
-                        source_id: this.location.source_id,
-                    },
-                )
-            })?;
-
-        let Some(base) = source.path().and_then(|p| p.parent()) else {
-            return Err(compile::Error::msg(
-                &*p,
-                "include_str! requires a source loaded from a file path",
-            ));
-        };
-
-        let full_path = base.join(rel_path.as_ref());
-
-        let contents = match std::fs::read_to_string(&full_path) {
-            Ok(contents) => contents,
-            Err(error) => {
-                return Err(compile::Error::msg(
-                    &*p,
-                    try_format!(
-                        "include_str!: failed to read `{}`: {error}",
-                        full_path.display()
-                    ),
-                ));
-            }
-        };
-
-        let id = self.q.storage.insert_str(&contents)?;
-
-        let value = ast::LitStr {
-            span: p.span(),
-            source: ast::StrSource::Synthetic(id),
-        };
-
-        Ok(BuiltInMacro2::IncludeStr(value))
     }
 
     fn expand_line_macro(

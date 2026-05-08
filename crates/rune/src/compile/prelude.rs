@@ -31,8 +31,6 @@ impl Prelude {
         this.add_prelude("Err", ["result", "Result", "Err"])?;
         this.add_prelude("file", ["macros", "builtin", "file"])?;
         this.add_prelude("format", ["fmt", "format"])?;
-        #[cfg(feature = "std")]
-        this.add_prelude("include_str", ["macros", "builtin", "include_str"])?;
         this.add_prelude("is_readable", ["is_readable"])?;
         this.add_prelude("is_writable", ["is_writable"])?;
         this.add_prelude("line", ["macros", "builtin", "line"])?;

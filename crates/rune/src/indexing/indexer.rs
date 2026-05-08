@@ -15,7 +15,7 @@ use crate::grammar::{Ignore, Node, Tree};
 use crate::internal_macros::resolve_context;
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
-use crate::query::{BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
+use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
 use crate::runtime::{format, Call};
 use crate::worker::{LoadFileKind, Task};
 use crate::SourceId;
@@ -155,8 +155,6 @@ impl Indexer<'_, '_> {
             "template" => self.expand_template_macro(ast, &args)?,
             "format" => self.expand_format_macro(ast, &args)?,
             "file" => self.expand_file_macro(ast)?,
-            #[cfg(feature = "std")]
-            "include_str" => self.expand_include_str_macro(ast)?,
             "line" => self.expand_line_macro(ast)?,
             _ => {
                 return Err(compile::Error::new(
@@ -179,8 +177,6 @@ impl Indexer<'_, '_> {
             }
 
             BuiltInMacro::Line(_) | BuiltInMacro::File(_) => { /* Nothing to index */ }
-            #[cfg(feature = "std")]
-            BuiltInMacro::IncludeStr(_) => { /* Nothing to index */ }
         }
 
         let id = self.q.insert_new_builtin_macro(internal_macro)?;
@@ -379,59 +375,7 @@ impl Indexer<'_, '_> {
             source,
         });
 
-        Ok(BuiltInMacro::File(value))
-    }
-
-    /// Expand `include_str!("path")` to the contents of the file at the given
-    /// path, resolved relative to the current source file.
-    #[cfg(feature = "std")]
-    fn expand_include_str_macro(
-        &mut self,
-        ast: &ast::MacroCall,
-    ) -> compile::Result<BuiltInMacro> {
-        let source = self.q.sources.get(self.source_id).ok_or_else(|| {
-            compile::Error::new(
-                ast,
-                ErrorKind::MissingSourceId {
-                    source_id: self.source_id,
-                },
-            )
-        })?;
-
-        let Some(base) = source.path().and_then(|p| p.parent()) else {
-            return Err(compile::Error::msg(
-                ast,
-                "include_str! requires a source loaded from a file path",
-            ));
-        };
-
-        let mut parser = Parser::from_token_stream(&ast.input, ast.span());
-        let path_lit = parser.parse::<ast::LitStr>()?;
-        parser.eof()?;
-
-        let rel_path = path_lit.resolve(resolve_context!(self.q))?;
-        let full_path = base.join(rel_path.as_ref());
-
-        let contents = match std::fs::read_to_string(&full_path) {
-            Ok(contents) => contents,
-            Err(error) => {
-                return Err(compile::Error::msg(
-                    ast,
-                    try_format!(
-                        "include_str!: failed to read `{}`: {error}",
-                        full_path.display()
-                    ),
-                ));
-            }
-        };
-
-        let id = self.q.storage.insert_str(&contents)?;
-        let value = ast::Lit::Str(ast::LitStr {
-            span: ast.span(),
-            source: ast::StrSource::Synthetic(id),
-        });
-
-        Ok(BuiltInMacro::IncludeStr(value))
+        Ok(BuiltInMacro::File(BuiltInFile { value }))
     }
 
     /// Expand a macro returning the current line for where the macro invocation begins

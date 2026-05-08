@@ -1,5 +1,0 @@
-#[test]
-fn include_str_reads_file() {
-    let s = include_str!("include_str_data.txt");
-    assert_eq!(s, "Hello from include_str");
-}

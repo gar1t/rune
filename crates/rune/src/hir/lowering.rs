@@ -636,9 +636,7 @@ pub(crate) fn expr<'hir>(
                         value: alloc!(expr(cx, &ast.value)?),
                     }))
                 }
-                query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(cx, ast)?),
-                #[cfg(feature = "std")]
-                query::BuiltInMacro::IncludeStr(ast) => hir::ExprKind::Lit(lit(cx, ast)?),
+                query::BuiltInMacro::File(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
                 query::BuiltInMacro::Line(ast) => hir::ExprKind::Lit(lit(cx, &ast.value)?),
             }
         }

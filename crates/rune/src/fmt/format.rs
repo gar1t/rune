@@ -1296,7 +1296,17 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                 None => true,
             };
 
-            if tail_is_short {
+            let call_fits = tail_is_short
+                && tail
+                    .map(|(_, call_span)| {
+                        fmt.source
+                            .source_len(head.join(call_span))
+                            .map(|w| w + tail_width.unwrap_or(0) < budget)
+                            .unwrap_or(true)
+                    })
+                    .unwrap_or(true);
+
+            if call_fits {
                 from = usize::MAX;
                 fmt.reserved_width = tail_width.unwrap_or(0);
             } else {
@@ -1313,9 +1323,14 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut prev_was_call = false;
 
     for (n, node) in p.by_ref().enumerate() {
-        if n >= from && matches!(node.kind(), ExprField | ExprAwait) && !(prev_was_call && matches!(node.kind(), ExprAwait)) {
-            fmt.indent(isize::from(take(&mut unindented)))?;
-            fmt.nl(1)?;
+        if n >= from {
+            if take(&mut unindented) {
+                fmt.indent(1)?;
+            }
+
+            if matches!(node.kind(), ExprField | ExprAwait) && !(prev_was_call && matches!(node.kind(), ExprAwait)) {
+                fmt.nl(1)?;
+            }
         }
 
         prev_was_call = matches!(node.kind(), ExprCall);

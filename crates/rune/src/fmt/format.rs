@@ -734,40 +734,97 @@ fn loose_expr_macro_call<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Res
 }
 
 fn compact_expr_macro_call<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    let expanded = fmt.source.is_at_least(p.span(), fmt.remaining_budget())?;
+
     p.expect(K!['('])?.fmt(fmt)?;
 
     p.expect(TokenStream)?.parse(|p| {
-        let mut buf = None;
-        let mut has_ws = false;
-
-        while let Some(node) = p.next_with_ws() {
-            if matches!(node.kind(), K![,]) {
-                fmt.write_raw(node)?;
-                fmt.ws()?;
-                has_ws = true;
-                continue;
-            }
-
-            if node.is_whitespace() {
-                buf = Some(node);
-                continue;
-            }
-
-            if let Some(buf) = buf.take() {
-                if !has_ws {
-                    fmt.write_raw(buf)?;
-                }
-            }
-
-            fmt.flush_whitespace(false)?;
-            fmt.write_raw(node)?;
-            has_ws = false;
+        if expanded {
+            compact_expr_macro_call_loose(fmt, p)
+        } else {
+            compact_expr_macro_call_compact(fmt, p)
         }
-
-        Ok(())
     })?;
 
     p.expect(K![')'])?.fmt(fmt)?;
+    Ok(())
+}
+
+fn compact_expr_macro_call_loose<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    if p.is_eof() {
+        return Ok(());
+    }
+
+    fmt.nl(1)?;
+    fmt.indent(1)?;
+
+    let mut buf = None;
+    let mut has_ws = false;
+    let mut depth: usize = 0;
+
+    while let Some(node) = p.next_with_ws() {
+        match node.kind() {
+            K!['('] | K!['['] | K!['{'] => depth += 1,
+            K![')'] | K![']'] | K!['}'] => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+
+        if depth == 0 && matches!(node.kind(), K![,]) {
+            fmt.write_raw(node)?;
+            fmt.nl(1)?;
+            has_ws = true;
+            continue;
+        }
+
+        if node.is_whitespace() {
+            buf = Some(node);
+            continue;
+        }
+
+        if let Some(buf) = buf.take() {
+            if !has_ws {
+                fmt.write_raw(buf)?;
+            }
+        }
+
+        fmt.flush_whitespace(false)?;
+        fmt.write_raw(node)?;
+        has_ws = false;
+    }
+
+    fmt.nl(1)?;
+    fmt.indent(-1)?;
+    Ok(())
+}
+
+fn compact_expr_macro_call_compact<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    let mut buf = None;
+    let mut has_ws = false;
+
+    while let Some(node) = p.next_with_ws() {
+        if matches!(node.kind(), K![,]) {
+            fmt.write_raw(node)?;
+            fmt.ws()?;
+            has_ws = true;
+            continue;
+        }
+
+        if node.is_whitespace() {
+            buf = Some(node);
+            continue;
+        }
+
+        if let Some(buf) = buf.take() {
+            if !has_ws {
+                fmt.write_raw(buf)?;
+            }
+        }
+
+        fmt.flush_whitespace(false)?;
+        fmt.write_raw(node)?;
+        has_ws = false;
+    }
+
     Ok(())
 }
 

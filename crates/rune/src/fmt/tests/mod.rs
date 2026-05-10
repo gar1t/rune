@@ -980,6 +980,23 @@ fn test_macro_function_like() {
         };
         "#,
     );
+    assert_format!(
+        r#"
+        assert_eq!(flagged[0].score.weights, #{"blame": 2.0, "repetition_complaint": 2.0, "negative_judgment": 1.0});
+        "#,
+        r#"
+        assert_eq!(
+            flagged[0].score.weights,
+            #{"blame": 2.0, "repetition_complaint": 2.0, "negative_judgment": 1.0}
+        );
+        "#,
+    );
+
+    assert_format!(
+        r#"
+        println!("short", 42);
+        "#,
+    );
 }
 
 #[test]

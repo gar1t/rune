@@ -96,6 +96,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
                 m, $ty, $example,
                 (random_u64, u64),
                 (random_i64, i64),
+                (random_f64, f64),
                 (random_char, char),
                 (random_bool, bool),
             };
@@ -104,6 +105,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
                 m, $ty, $example,
                 (random_range_u64, u64, Value::as_integer::<u64>, 0..100),
                 (random_range_i64, i64, Value::as_integer::<i64>, -100..100),
+                (random_range_f64, f64, Value::as_float, 0.0..1.0),
                 (random_range_char, char, Value::as_char, 'a'..'z'),
             };
         };

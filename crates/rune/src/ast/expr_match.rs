@@ -8,6 +8,26 @@ fn ast_parse() {
     assert_eq!(expr.attributes.len(), 1);
 
     rt::<ast::ExprMatchBranch>("1 => { foo }");
+
+    // Match arm bodies that end in a brace must not chain a following
+    // parenthesised pattern as a function call (issue: parser would treat
+    // `{ ... }(1, 3)` as `Call(Block, (1, 3))`).
+    let expr = rt::<ast::ExprMatch>(
+        "match foo { (1, 2) => { a } (1, 3) => { b } _ => { c } }",
+    );
+    assert_eq!(expr.branches.len(), 3);
+
+    // The same shape with `if`-bodies must also work.
+    let expr = rt::<ast::ExprMatch>(
+        "match foo { 1 => if x { a } else { b } (1, 3) => { c } _ => { d } }",
+    );
+    assert_eq!(expr.branches.len(), 3);
+
+    // Nested match in arm body without trailing comma.
+    let expr = rt::<ast::ExprMatch>(
+        "match foo { 1 => match bar { _ => 0 } (1, 3) => { c } _ => { d } }",
+    );
+    assert_eq!(expr.branches.len(), 3);
 }
 
 /// A match expression.
@@ -83,5 +103,15 @@ pub struct ExprMatchBranch {
     /// The rocket token.
     pub rocket: T![=>],
     /// The body of the match.
+    #[rune(parse_with = parse_body)]
     pub body: ast::Expr,
+}
+
+fn parse_body(p: &mut Parser<'_>) -> Result<ast::Expr> {
+    ast::Expr::parse_with(
+        p,
+        ast::expr::EAGER_BRACE,
+        ast::expr::EAGER_BINARY,
+        ast::expr::NOT_CALLABLE,
+    )
 }

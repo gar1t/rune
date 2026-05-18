@@ -215,6 +215,45 @@ fn match_extraction_struct() {
     assert_eq!(inner(v), 42);
 }
 
+/// Match arms whose body is a brace-ending expression (block, `if`, nested
+/// `match`, ...) must not require a trailing comma, and must not chain a
+/// following parenthesised pattern as a function call onto the body.
+#[test]
+fn match_block_body_no_trailing_comma() {
+    fn inner(v) {
+        match v {
+            (1, 2) => {
+                "yes"
+            }
+            (1, 3) => {
+                "no but close"
+            }
+            _ => {
+                "no"
+            }
+        }
+    }
+
+    assert_eq!(inner((1, 2)), "yes");
+    assert_eq!(inner((1, 3)), "no but close");
+    assert_eq!(inner((9, 9)), "no");
+
+    fn nested(v) {
+        match v {
+            1 => match v {
+                1 => "one",
+                _ => "other",
+            }
+            (1, 3) => { "pair" }
+            _ => { "default" }
+        }
+    }
+
+    assert_eq!(nested(1), "one");
+    assert_eq!(nested((1, 3)), "pair");
+    assert_eq!(nested(7), "default");
+}
+
 /// This tests that matching against a built-in type with a value which is not
 /// the same type does not error due to a type mismatch.
 #[test]

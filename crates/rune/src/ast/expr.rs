@@ -244,6 +244,7 @@ impl Expr {
             Self::If(_) => callable,
             Self::Match(_) => callable,
             Self::Select(_) => callable,
+            Self::Block(_) => callable,
             _ => true,
         }
     }

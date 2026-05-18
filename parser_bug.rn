@@ -1,0 +1,14 @@
+pub fn main() {
+    let foo = (1, 2);
+    match foo {
+        (1, 2) => {
+            println("yes");
+        }
+        (1, 3) => {
+            println("no but close");
+        }
+        _ => {
+            println("no");
+        }
+    }
+}

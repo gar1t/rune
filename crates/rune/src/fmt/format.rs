@@ -1273,12 +1273,19 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         let mut found = false;
         let first = tail.map(|(n, _)| n).unwrap_or_default();
 
-        for node in p.children().skip(first.wrapping_add(1)) {
-            found |= matches!(node.kind(), ExprField | ExprAwait);
+        // The immediately-preceding node before the scan is the call, so any
+        // `.await` right after it stays inline and doesn't force a newline.
+        let mut prev_was_call_scan = tail.is_some();
 
-            if found {
+        for node in p.children().skip(first.wrapping_add(1)) {
+            if matches!(node.kind(), ExprField | ExprAwait)
+                && !(prev_was_call_scan && matches!(node.kind(), ExprAwait))
+            {
+                found = true;
                 break;
             }
+
+            prev_was_call_scan = matches!(node.kind(), ExprCall);
         }
 
         if found {

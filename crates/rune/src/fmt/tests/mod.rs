@@ -1373,4 +1373,35 @@ fn test_expanded_chain() {
         let var = 10;
         "#
     );
+
+    // A `.await` (or `.await?`) immediately after a call stays inline with the
+    // closing paren, so the call's args must not be extra-indented for the
+    // chain.
+    assert_format!(
+        r#"
+        pub async fn foo() {
+            write_note(
+                #{
+                    name: "baz",
+                    description: "Found a bam that exceeds min",
+                    metadata: #{ bar, min_bar },
+                },
+            ).await?;
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        pub async fn foo() {
+            write_note(
+                #{
+                    name: "baz",
+                    description: "Found a bam that exceeds min",
+                    metadata: #{ bar, min_bar },
+                },
+            ).await;
+        }
+        "#
+    );
 }

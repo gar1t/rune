@@ -77,6 +77,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(insert)?;
     m.function_meta(sort_by)?;
     m.function_meta(sort)?;
+    m.function_meta(join)?;
     m.function_meta(into_iter__meta)?;
     m.function_meta(index_get)?;
     m.function_meta(index_set)?;
@@ -327,6 +328,42 @@ fn sort(vec: &mut Vec) -> Result<(), VmError> {
     }
 
     Ok(())
+}
+
+/// Concatenates the string slices in a vector, separated by the given
+/// separator.
+///
+/// Each element must be a [`String`]; passing a vector containing any other
+/// type raises a runtime error.
+///
+/// # Examples
+///
+/// ```rune
+/// let s = ["a", "b", "c"].join(", ");
+/// assert_eq!(s, "a, b, c");
+///
+/// let empty = [].join(", ");
+/// assert_eq!(empty, "");
+///
+/// let one = ["solo"].join("-");
+/// assert_eq!(one, "solo");
+/// ```
+#[rune::function(instance)]
+fn join(this: &Vec, sep: &str) -> Result<String, VmError> {
+    let mut out = String::new();
+    let mut first = true;
+
+    for value in this.iter() {
+        if !first {
+            out.try_push_str(sep)?;
+        }
+
+        first = false;
+        let s = value.borrow_string_ref()?;
+        out.try_push_str(&s)?;
+    }
+
+    Ok(out)
 }
 
 /// Clears the vector, removing all values.

@@ -89,6 +89,15 @@ fn test_vectors() {
 }
 
 #[test]
+fn test_vec_join() {
+    assert_eq!(["a", "b"].join(", "), "a, b");
+    assert_eq!(["a", "b", "c"].join(" - "), "a - b - c");
+    assert_eq!([].join(", "), "");
+    assert_eq!(["solo"].join("-"), "solo");
+    assert_eq!(["a", "b"].join(""), "ab");
+}
+
+#[test]
 fn test_while() {
     let a = 0;
 

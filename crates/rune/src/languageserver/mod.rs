@@ -222,13 +222,16 @@ where
 
                     // If server is not initialized, reject incoming requests.
                     if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
-                        state.out
-                            .error(
-                                incoming.id,
-                                Code::InvalidRequest,
-                                "Server not initialized",
-                                None::<()>,
-                            )?;
+                        // Notifications carry no id and must never be answered
+                        if incoming.id.is_some() {
+                            state.out
+                                .error(
+                                    incoming.id,
+                                    Code::InvalidRequest,
+                                    "Server not initialized",
+                                    None::<()>,
+                                )?;
+                        }
 
                         continue;
                     }
@@ -250,7 +253,10 @@ where
                                         lsp::MessageType::INFO,
                                         format!("Unhandled method `{}`", incoming.method),
                                     )?;
-                                    state.out.method_not_found(incoming.id)?;
+                                    // Notifications carry no id and must never be answered
+                                    if incoming.id.is_some() {
+                                        state.out.method_not_found(incoming.id)?;
+                                    }
                                 }
                             }
                         }

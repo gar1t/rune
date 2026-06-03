@@ -1,6 +1,6 @@
 use core::mem::take;
 
-use crate::ast::{Delimiter, Kind, Span};
+use crate::ast::{Delimiter, Kind};
 use crate::compile::Result;
 use crate::grammar::{classify, object_key, MaybeNode, NodeClass};
 
@@ -1240,7 +1240,13 @@ fn expr_closure<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 }
 
 fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
-    let expanded = fmt.source.is_at_least(p.span(), fmt.remaining_budget())?;
+    // Budget for the column where the head will actually start: a `let x = `
+    // prefix on the current line shrinks it, while a pending newline resets it
+    // to the indent. The root call expands its arguments exactly when it
+    // exceeds this, which is what determines whether continuations align at the
+    // base indent.
+    let budget = fmt.pending_budget();
+    let expanded = fmt.source.is_at_least(p.span(), budget)?;
 
     // If the first expression *is* small, and there are no other expressions
     // that need indentation in the chain, we can keep it all on one line.
@@ -1250,97 +1256,76 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
         Ok(first)
     })?;
 
-    let tail = 'tail: {
-        for (n, node) in p.children().enumerate() {
-            if matches!(node.kind(), ExprCall) {
-                break 'tail Some((n, node.span()));
+    // Scan the postfix chain. The "root" is the head plus any postfix call or
+    // index that binds before the first `.field`/`.await`; everything from the
+    // first `.field`/`.await` onward is a "continuation". We follow rustfmt's
+    // layout: continuations that don't fit on one line each get their own line.
+    let mut first_field = None;
+    let mut first_call = None;
+    let mut field_after_call = false;
+    let mut root_span = head;
+
+    for (n, node) in p.children().enumerate() {
+        match node.kind() {
+            ExprField | ExprAwait => {
+                if first_field.is_none() {
+                    first_field = Some(n);
+                }
+
+                if first_call.is_some() {
+                    field_after_call = true;
+                }
             }
+            ExprCall if first_call.is_none() => {
+                first_call = Some(n);
+            }
+            _ => {}
         }
 
-        None
-    };
-
-    let budget = fmt.line_budget();
-    let first_is_small = if let Some((_, tail)) = tail {
-        !fmt.source.is_at_least(head.join(tail.head()), budget)?
-    } else {
-        !fmt.source.is_at_least(head, budget)?
-    };
-
-    let from;
-
-    if expanded && first_is_small {
-        let mut found = false;
-        let first = tail.map(|(n, _)| n).unwrap_or_default();
-
-        // The immediately-preceding node before the scan is the call, so any
-        // `.await` right after it stays inline and doesn't force a newline.
-        let mut prev_was_call_scan = tail.is_some();
-
-        for node in p.children().skip(first.wrapping_add(1)) {
-            if matches!(node.kind(), ExprField | ExprAwait)
-                && !(prev_was_call_scan && matches!(node.kind(), ExprAwait))
-            {
-                found = true;
-                break;
-            }
-
-            prev_was_call_scan = matches!(node.kind(), ExprCall);
+        // The root accumulates leading postfix nodes up to the first
+        // continuation; once a continuation is seen the root is complete.
+        if first_field.is_none() {
+            root_span = root_span.join(node.span());
         }
-
-        if found {
-            let tail_width = p.children().skip(first.wrapping_add(1))
-                .fold(None, |acc: Option<Span>, n| {
-                    Some(match acc {
-                        Some(s) => s.join(n.span()),
-                        None => n.span(),
-                    })
-                })
-                .and_then(|span| fmt.source.source_len(span));
-
-            let tail_is_short = match tail_width {
-                Some(len) => len < budget.saturating_sub(1),
-                None => true,
-            };
-
-            let call_fits = tail_is_short
-                && tail
-                    .map(|(_, call_span)| {
-                        fmt.source
-                            .source_len(head.join(call_span))
-                            .map(|w| w + tail_width.unwrap_or(0) < budget)
-                            .unwrap_or(true)
-                    })
-                    .unwrap_or(true);
-
-            if call_fits {
-                from = usize::MAX;
-                fmt.reserved_width = tail_width.unwrap_or(0);
-            } else {
-                from = 0;
-            }
-        } else {
-            from = first + 1;
-        }
-    } else {
-        from = if expanded { 0 } else { usize::MAX };
     }
 
+    // A chain is "broken" (each continuation on its own line) when there is a
+    // `.field`/`.await` *after* a call (e.g. `foo(..).bar()`), or when the
+    // chain is a bare field chain with no call. Otherwise the continuations
+    // stay attached to the root and only the terminal call's arguments expand
+    // (e.g. `value.foo.bar(..)`), which `exprs` handles on its own.
+    let broken = match first_call {
+        Some(_) => field_after_call,
+        None => first_field.is_some(),
+    };
+
+    // rustfmt indents a broken chain's continuations by one level, *unless* the
+    // root itself renders across multiple lines (its call args expanded), in
+    // which case the continuations align with the root at the base indent.
+    let indent_delta = if expanded
+        && broken
+        && !fmt.source.is_at_least(root_span, budget)?
+    {
+        1
+    } else {
+        0
+    };
+
+    // In a broken chain every `.field`/`.await` continuation goes on its own
+    // line. The leading root nodes (head plus any postfix call/index before the
+    // first continuation) are never fields/awaits, so they stay attached.
+    let break_continuations = expanded && broken;
+
     let mut unindented = true;
-    let mut prev_was_call = false;
 
-    for (n, node) in p.by_ref().enumerate() {
-        if n >= from {
-            if take(&mut unindented) {
-                fmt.indent(1)?;
+    for node in p.by_ref() {
+        if break_continuations && matches!(node.kind(), ExprField | ExprAwait) {
+            if indent_delta != 0 && take(&mut unindented) {
+                fmt.indent(indent_delta)?;
             }
 
-            if matches!(node.kind(), ExprField | ExprAwait) && !(prev_was_call && matches!(node.kind(), ExprAwait)) {
-                fmt.nl(1)?;
-            }
+            fmt.nl(1)?;
         }
-
-        prev_was_call = matches!(node.kind(), ExprCall);
 
         node.parse(|p| {
             match p.kind() {
@@ -1380,14 +1365,10 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 
             Ok(())
         })?;
-
-        if prev_was_call {
-            fmt.reserved_width = 0;
-        }
     }
 
-    if !unindented {
-        fmt.indent(-1)?;
+    if indent_delta != 0 && !unindented {
+        fmt.indent(-indent_delta)?;
     }
 
     Ok(())

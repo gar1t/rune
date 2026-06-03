@@ -1265,35 +1265,35 @@ fn test_expanded_chain() {
         "#,
         r#"
         let graph = HashMap::from_iter(
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-            )
-            .bar(
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-                abcd,
-            );
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+        )
+        .bar(
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+        );
 
         let var = 10;
         "#
@@ -1374,9 +1374,10 @@ fn test_expanded_chain() {
         "#
     );
 
-    // A `.await` (or `.await?`) immediately after a call stays inline with the
-    // closing paren, so the call's args must not be extra-indented for the
-    // chain.
+    // Following rustfmt, a `.await`/`.await?` after a call is a chain
+    // continuation: it breaks onto its own line, and since the head call renders
+    // across multiple lines the continuation aligns with the head at the base
+    // indent (not indented for the chain).
     assert_format!(
         r#"
         pub async fn foo() {
@@ -1386,7 +1387,8 @@ fn test_expanded_chain() {
                     description: "Found a bam that exceeds min",
                     metadata: #{ bar, min_bar },
                 },
-            ).await?;
+            )
+            .await?;
         }
         "#
     );
@@ -1400,7 +1402,85 @@ fn test_expanded_chain() {
                     description: "Found a bam that exceeds min",
                     metadata: #{ bar, min_bar },
                 },
-            ).await;
+            )
+            .await;
+        }
+        "#
+    );
+
+    // An intermediate method call between the head call and the `.await`: each
+    // continuation gets its own line, all aligned with the multi-line head call
+    // at the base indent.
+    assert_format!(
+        r#"
+        pub async fn foo() {
+            write_note(
+                #{
+                    name: "baz",
+                    description: "Found a bam that exceeds min",
+                    metadata: #{ bar, min_bar },
+                },
+            )
+            .never_replace()
+            .await?;
+        }
+        "#
+    );
+
+    // A single-line head with several calls: continuations indent one level.
+    assert_format!(
+        r#"
+        pub fn foo() {
+            let a = foo()
+                .bar_method_long()
+                .baz_method_longer()
+                .qux_method_even_longer_here();
+        }
+        "#
+    );
+
+    // A head call whose arguments expand renders multi-line, so the
+    // continuation aligns with it at the base indent.
+    assert_format!(
+        r#"
+        pub fn foo() {
+            let c = thing(
+                arg_one_here,
+                arg_two_here,
+                arg_three_here,
+                arg_four_here,
+                arg_five,
+            )
+            .method();
+        }
+        "#
+    );
+
+    // A head call that fits on one line, with a chain too long to fit: the head
+    // stays on its line and the continuations indent one level.
+    assert_format!(
+        r#"
+        pub fn foo() {
+            let x = short_call(aa, bb)
+                .method_one_x()
+                .method_two_x()
+                .method_three_xxxxxxxxxx();
+        }
+        "#
+    );
+
+    // A single terminal call keeps the leading field accesses attached and only
+    // expands its arguments.
+    assert_format!(
+        r#"
+        pub fn foo() {
+            let a = foo.bar(
+                arg_one_here,
+                arg_two_here,
+                arg_three_here,
+                arg_four_here,
+                arg_5_x,
+            );
         }
         "#
     );

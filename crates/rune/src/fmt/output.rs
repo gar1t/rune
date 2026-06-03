@@ -103,6 +103,16 @@ impl Buffer {
     }
 
     #[inline]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether any newline has been written at or after the given byte offset.
+    fn has_newline_from(&self, from: usize) -> bool {
+        self.0.get(from..).is_some_and(|s| s.contains('\n'))
+    }
+
+    #[inline]
     fn str(&mut self, s: &str) -> alloc::Result<()> {
         self.0.try_push_str(s)
     }
@@ -246,6 +256,21 @@ impl<'a> Formatter<'a> {
         };
 
         80usize.saturating_sub(column)
+    }
+
+    /// Mark the current output position, for use with [`wrote_newline_since`].
+    ///
+    /// [`wrote_newline_since`]: Formatter::wrote_newline_since
+    pub(super) fn output_mark(&self) -> usize {
+        self.o.len()
+    }
+
+    /// Whether any newline has been written since the given [`output_mark`],
+    /// i.e. whether the content written since then spans multiple lines.
+    ///
+    /// [`output_mark`]: Formatter::output_mark
+    pub(super) fn wrote_newline_since(&self, mark: usize) -> bool {
+        self.o.has_newline_from(mark)
     }
 
     /// Indent the output.

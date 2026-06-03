@@ -1485,3 +1485,66 @@ fn test_expanded_chain() {
         "#
     );
 }
+
+/// Following rustfmt, when a control-flow expression's controlling expression
+/// spans multiple lines, the opening brace goes on its own line.
+#[test]
+fn test_multiline_control_flow_brace() {
+    assert_format!(
+        r#"
+        pub async fn f() {
+            for msg in session()
+                .messages()
+                .with_type(#{ assistant: "thinking" })
+                .reverse()
+                .await?
+            {
+                println!("row {}", msg.line);
+            }
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        pub fn f() {
+            if some_object
+                .method_one_x()
+                .method_two_x()
+                .method_three_x()
+                .method_four_longx()
+            {
+                do_thing();
+            }
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        pub fn f() {
+            while queue
+                .poll_one()
+                .poll_two()
+                .poll_three()
+                .poll_four_longer()
+                .poll_five_long()
+            {
+                work();
+            }
+        }
+        "#
+    );
+
+    // A single-line controlling expression keeps the brace attached.
+    assert_format!(
+        r#"
+        pub fn f() {
+            for x in items {
+                use_it(x);
+            }
+        }
+        "#
+    );
+}
+

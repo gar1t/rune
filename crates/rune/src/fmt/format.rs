@@ -966,11 +966,26 @@ fn expr_empty_group<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<(
     Ok(())
 }
 
+/// Emit the separator between a control-flow expression's controlling
+/// expression and its block: a space normally, but a newline (following
+/// rustfmt) when the controlling expression spanned multiple lines, so the
+/// opening brace lands on its own line.
+fn block_separator<'a>(fmt: &mut Formatter<'a>, mark: usize) -> Result<()> {
+    if fmt.wrote_newline_since(mark) {
+        fmt.nl(1)?;
+    } else {
+        fmt.ws()?;
+    }
+
+    Ok(())
+}
+
 fn expr_if<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(If)?.fmt(fmt)?;
     fmt.ws()?;
+    let mark = fmt.output_mark();
     condition_or_expr(fmt, p)?;
-    fmt.ws()?;
+    block_separator(fmt, mark)?;
 
     if p.eat(Block).parse(|p| block(fmt, p))?.is_none() {
         fmt.lit("{}")?;
@@ -994,8 +1009,9 @@ fn expr_if<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                     fmt.ws()?;
                     p.expect(K![if])?.fmt(fmt)?;
                     fmt.ws()?;
+                    let mark = fmt.output_mark();
                     condition_or_expr(fmt, p)?;
-                    fmt.ws()?;
+                    block_separator(fmt, mark)?;
                     p.expect(Block)?.parse(|p| block(fmt, p))?;
                     Ok(())
                 })?;
@@ -1012,8 +1028,9 @@ fn expr_if<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
 fn expr_while<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K![while])?.fmt(fmt)?;
     fmt.ws()?;
+    let mark = fmt.output_mark();
     condition_or_expr(fmt, p)?;
-    fmt.ws()?;
+    block_separator(fmt, mark)?;
     p.expect(Block)?.parse(|p| block(fmt, p))?;
     Ok(())
 }
@@ -1032,8 +1049,9 @@ fn expr_for<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     fmt.ws()?;
     p.expect(K![in])?.fmt(fmt)?;
     fmt.ws()?;
+    let mark = fmt.output_mark();
     p.pump()?.parse(|p| expr(fmt, p))?;
-    fmt.ws()?;
+    block_separator(fmt, mark)?;
     p.expect(Block)?.parse(|p| block(fmt, p))?;
     Ok(())
 }

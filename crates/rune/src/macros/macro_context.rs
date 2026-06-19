@@ -1,6 +1,7 @@
 //! Context for a macro.
 
 use core::fmt;
+use std::path::Path;
 
 use crate::alloc;
 use crate::ast;
@@ -289,6 +290,15 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// If the macro call was `stringify!(a + b)` this would refer to `a + b`.
     pub fn input_span(&self) -> Span {
         self.input_span
+    }
+
+    /// The filesystem path of the source file containing the macro
+    /// invocation, if the source was loaded from a path. Returns `None` for
+    /// in-memory sources (those constructed via `Source::new` or
+    /// `Source::memory`).
+    pub fn source_path(&self) -> Option<&Path> {
+        let source_id = self.item_meta.location.source_id;
+        self.idx.q.sources.get(source_id)?.path()
     }
 }
 

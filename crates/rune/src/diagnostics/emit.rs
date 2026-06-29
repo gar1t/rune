@@ -468,7 +468,7 @@ where
     }
 
     let diagnostic = d::Diagnostic::warning()
-        .with_message("Warning")
+        .with_message(this.try_to_string()?)
         .with_labels(labels)
         .with_notes(notes);
 

@@ -343,8 +343,21 @@ fn fn_arg_pat<'a, 'hir>(
         Ok(Asm::new(pat, ()))
     };
 
+    // The single-binding fast path lets the bound name alias the fn
+    // argument stack slot, avoiding a Copy. That is only correct when
+    // the pattern is a bare ident (`fn f(x)`). For a destructure that
+    // happens to bind exactly one name (`fn f(#{ text })`, `fn f((a,)`)
+    // the extraction op would write the bound value into the same slot
+    // that still holds the source aggregate, dropping it while the
+    // runtime is mid-borrow — UAF.
+    let is_ident_pat = matches!(
+        pat.pat.kind,
+        hir::PatKind::Path(hir::PatPathKind::Ident(..))
+    );
     let out = match pat.names {
-        [name] => pat_binding_with_single(cx, pat, &pat.pat, *name, false_label, &mut load, needs)?,
+        [name] if is_ident_pat => {
+            pat_binding_with_single(cx, pat, &pat.pat, *name, false_label, &mut load, needs)?
+        }
         _ => pat_binding(cx, pat, false_label, &mut load)?,
     };
 

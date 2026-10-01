@@ -1256,6 +1256,43 @@ fn expressions_in_group() {
 }
 
 #[test]
+fn test_chain_comments() {
+    // An own-line comment between continuations stays in place and forces the
+    // chain to break, even when the chain would otherwise fit on one line.
+    assert_format!(
+        r#"
+        pub async fn main() {
+            let secret = || params().secret;
+            let a = call_agent("What's the secret?")
+                .model("small")
+                .tool(secret)
+                // .tool(Tool::new("secret", "Get the secret", secret).build())
+                .await?;
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        let a = foo("x")
+            .bar()
+            // .baz()
+            .await?;
+        "#
+    );
+
+    // A trailing same-line comment on a continuation stays on that line.
+    assert_format!(
+        r#"
+        let a = foo("x")
+            .bar() // keep
+            .baz()
+            .await?;
+        "#
+    );
+}
+
+#[test]
 fn test_expanded_chain() {
     assert_format!(
         r#"

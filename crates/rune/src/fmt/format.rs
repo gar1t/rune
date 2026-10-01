@@ -1264,7 +1264,7 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     // exceeds this, which is what determines whether continuations align at the
     // base indent.
     let budget = fmt.pending_budget();
-    let expanded = fmt.source.is_at_least(p.span(), budget)?;
+    let mut expanded = fmt.source.is_at_least(p.span(), budget)?;
 
     // If the first expression *is* small, and there are no other expressions
     // that need indentation in the chain, we can keep it all on one line.
@@ -1281,10 +1281,14 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut first_field = None;
     let mut first_call = None;
     let mut field_after_call = false;
+    let mut has_comment = false;
     let mut root_span = head;
 
     for (n, node) in p.children().enumerate() {
         match node.kind() {
+            Kind::Comment => {
+                has_comment = true;
+            }
             ExprField | ExprAwait => {
                 if first_field.is_none() {
                     first_field = Some(n);
@@ -1312,10 +1316,18 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     // chain is a bare field chain with no call. Otherwise the continuations
     // stay attached to the root and only the terminal call's arguments expand
     // (e.g. `value.foo.bar(..)`), which `exprs` handles on its own.
-    let broken = match first_call {
+    let mut broken = match first_call {
         Some(_) => field_after_call,
         None => first_field.is_some(),
     };
+
+    // A chain containing a comment can never be laid out on a single line, so
+    // it is always expanded and broken, mirroring how `exprs` treats comments
+    // in argument lists.
+    if has_comment {
+        expanded = true;
+        broken = true;
+    }
 
     // rustfmt indents a broken chain's continuations by one level, *unless* the
     // root itself renders across multiple lines (its call args expanded), in
@@ -1343,6 +1355,9 @@ fn expr_chain<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
             }
 
             fmt.nl(1)?;
+            // Emit any own-line comments queued after the previous
+            // continuation so they stay in place within the chain.
+            fmt.comments(Line)?;
         }
 
         node.parse(|p| {
